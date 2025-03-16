@@ -1,0 +1,29 @@
+# Use the official RunPod PyTorch image as the base
+FROM runpod/pytorch:2.0.1-py3.10-cuda11.8.0-devel
+
+# Set the shell to handle errors properly
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# Set the working directory inside the container
+WORKDIR /app
+
+# Copy the requirements file and install dependencies
+COPY STT_Requirements.txt /app/STT_Requirements.txt
+RUN pip install --upgrade pip && pip install -r STT_Requirements.txt
+
+# Copy all project files
+COPY . /app/
+
+# Set environment variables for Hugging Face cache
+ENV PYTHONPATH="/app"
+ENV HUGGINGFACE_HUB_CACHE="/runpod-volume/huggingface-cache/hub"
+ENV TRANSFORMERS_CACHE="/runpod-volume/huggingface-cache/hub"
+
+# Ensure STT.py is available and recognized
+COPY ./STT.py /app/STT.py
+
+# Expose the correct HTTP port for FastAPI
+EXPOSE 8888
+
+# Set the command to run the FastAPI app
+CMD ["uvicorn", "STT:app", "--host", "0.0.0.0", "--port", "8888"]
