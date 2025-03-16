@@ -2,9 +2,11 @@ from fastapi import FastAPI, File, UploadFile, HTTPException
 import torchaudio
 import torch
 import time
+import numpy as np
+import io
+import librosa
 from transformers import pipeline
 import uvicorn
-import io
 
 app = FastAPI()
 
@@ -23,23 +25,26 @@ async def transcribe_audio(file: UploadFile = File(...)):
     try:
         # Read the file into memory
         audio_bytes = await file.read()
-        audio_tensor, sample_rate = torchaudio.load(io.BytesIO(audio_bytes))
+        audio_stream = io.BytesIO(audio_bytes)
+
+        # Load audio file using torchaudio
+        audio_tensor, sample_rate = torchaudio.load(audio_stream)
+
+        # Convert multi-channel to mono
+        if audio_tensor.shape[0] > 1:
+            audio_tensor = torch.mean(audio_tensor, dim=0)
 
         # Resample to 16kHz if needed
         if sample_rate != 16000:
             resampler = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=16000)
             audio_tensor = resampler(audio_tensor)
 
-        # Convert to mono if multi-channel
-        if audio_tensor.shape[0] > 1:
-            audio_tensor = torch.mean(audio_tensor, dim=0, keepdim=True)
-
-        # Ensure tensor is in correct format
-        audio_tensor = audio_tensor.squeeze(0).numpy().astype("float32")
+        # Convert to NumPy format, ensuring it is 1D float32
+        audio_array = audio_tensor.numpy().astype(np.float32).flatten()
 
         # Perform transcription
         start_time = time.time()
-        transcription = pipe_seamless(audio_tensor, generate_kwargs={"tgt_lang": "arb"})
+        transcription = pipe_seamless(audio_array, generate_kwargs={"tgt_lang": "arb"})
         end_time = time.time()
 
         return {
